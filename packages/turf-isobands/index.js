@@ -7,7 +7,9 @@ var explode = require('@turf/explode');
 var inside = require('@turf/inside');
 var area = require('@turf/area');
 var invariant = require('@turf/invariant');
-var featureEach = require('@turf/meta').featureEach;
+var meta = require('@turf/meta');
+var featureEach = meta.featureEach;
+var getCoords = invariant.getCoords;
 var bbox = require('@turf/bbox');
 var distance = require('@turf/distance');
 var grid = require('@turf/point-grid');
@@ -45,11 +47,13 @@ module.exports = function (points, breaks, property) {
     property = property || 'elevation';
 
     // Isoband methods
-    var pointsByLatitude = dividePointsByLatitude(points);
-    if (!isPointGrid(pointsByLatitude)) {
-        var pointGrid = createPointGrid(points, property);
-        pointsByLatitude = dividePointsByLatitude(pointGrid);
-    }
+    // var pointsByLatitude = dividePointsByLatitude(points);
+    var pointsByLatitude = sortPointsByLatLng(points);
+
+    // if (!isPointGrid(pointsByLatitude)) {
+    //     var pointGrid = createPointGrid(points, property);
+    //     pointsByLatitude = dividePointsByLatitude(pointGrid);
+    // }
     var gridData = createGridData(pointsByLatitude, property);
     var contours = createContourLines(gridData, breaks, property);
     contours = rescaleContours(contours, gridData, pointsByLatitude);
@@ -220,6 +224,40 @@ function createContourLines(gridData, breaks, property) {
     return contours;
 }
 
+/**
+ * Sorts points by latitude and longitude, creating a 2-dimensional array of points
+ *
+ * @private
+ * @param {FeatureCollection<Point>} points GeoJSON Point features
+ * @returns {Array<Array<Point>>} points by latitude and longitude
+ */
+function sortPointsByLatLng(points) {
+    var pointsByLatitude = {};
+
+    // divide points by rows with the same latitude
+    featureEach(points, function (point) {
+        var lat = Math.round(getCoords(point)[1] * 100) / 100;
+        if (!pointsByLatitude[lat]) {
+            pointsByLatitude[lat] = [];
+        }
+        pointsByLatitude[lat].push(point);
+    });
+
+    // sort points (with the same latitude) by longitude
+    var orderedRowsByLatitude = Object.keys(pointsByLatitude).map(function (lat) {
+        var row = pointsByLatitude[lat];
+        var rowOrderedByLongitude = row.sort(function (a, b) {
+            return getCoords(a)[0] - getCoords(b)[0];
+        });
+        return rowOrderedByLongitude;
+    });
+
+    // sort rows (of points with the same latitude) by latitude
+    var pointMatrix = orderedRowsByLatitude.sort(function (a, b) {
+        return getCoords(b[0])[1] - getCoords(a[0])[1];
+    });
+    return pointMatrix;
+}
 
 /**
  * Divide points in pointGrid by latitude, creating a 2-dimensional data grid

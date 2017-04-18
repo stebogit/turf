@@ -4,6 +4,8 @@ const fs = require('fs');
 const load = require('load-json-file');
 const write = require('write-json-file');
 const random = require('@turf/random');
+const matrixToGrid = require('matrix-to-grid');
+const truncate = require('@turf/truncate');
 const isobands = require('./');
 
 
@@ -22,7 +24,11 @@ const fixtures = fs.readdirSync(directories.in).map(filename => {
 
 test('isobands', t => {
     fixtures.forEach(({name, geojson, filename}) => {
-        const results = isobands(geojson, [0, 3, 5, 7, 10], 'elevation');
+
+        let {matrix, origin, cellSize, options} = geojson;
+        const pointGrid = truncate(matrixToGrid(matrix, origin, cellSize, options));
+        // const results = isobands(geojson, [0, 3, 5, 7, 10], 'elevation');
+        const results = isobands(pointGrid, [0, 2, 5, 8, 11], 'elevation');
 
         if (process.env.REGEN) write.sync(directories.out + filename, results);
         t.equal(results.features[0].geometry.type, 'MultiPolygon', name + ' geometry=MultiPolygon');
